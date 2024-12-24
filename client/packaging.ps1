@@ -1,5 +1,6 @@
 # packaging.ps1
 # Transforming the packaging script to a PowerShell script
+# It's written for convenience, which will not be included in the product.
 
 Write-Host "Checking if PyInstaller is installed..."
 if (-not (Get-Command pyinstaller -ErrorAction SilentlyContinue)) {
@@ -63,13 +64,21 @@ function Convert-HexStringToByteArray($hex) {
     return ,$bytes  # Ensure it's returned as a byte array
 }
 
-$encryptionKeyHex  = "6B6E69676874636861736572CAFECAFE"
+$encryptionKeyHex  = "6B6E6967687463686173657200000000"
 $encryptionKey     = Convert-HexStringToByteArray $encryptionKeyHex
+
+$ivHex             = "576167616D616D6152616B6961000000"
+$ivBytes           = Convert-HexStringToByteArray $ivHex
+
+# Validate IV length (16 bytes for AES)
+if ($ivBytes.Length -ne 16) {
+    Write-Host "Error: IV must be 16 bytes (32 hex characters)."
+    exit 1
+}
 
 $aes               = [System.Security.Cryptography.Aes]::Create()
 $aes.Key           = $encryptionKey
-$aes.GenerateIV()   # Generate a randomly created IV (Initialization Vector)
-$iv                = $aes.IV
+$aes.IV            = $ivBytes
 
 # Define paths relative to the script's directory
 $encryptedFilePath = Join-Path $outputDir "client_encrypted.exe"
@@ -77,17 +86,14 @@ $encryptedFilePath = Join-Path $outputDir "client_encrypted.exe"
 Write-Host "Encrypted File Path: $encryptedFilePath"
 
 Write-Host "Key: $($encryptionKey | ForEach-Object { $_.ToString("X2") })"
-Write-Host "IV: $($iv | ForEach-Object { $_.ToString("X2") })"
+Write-Host "IV: $($ivBytes | ForEach-Object { $_.ToString("X2") })"
 Write-Host "Encrypting the executable..."
 
-$encryptor         = $aes.CreateEncryptor()
+$encryptor = $aes.CreateEncryptor()
 try {
-    $inputFileStream   = [System.IO.File]::OpenRead($executablePath)
-    $outputFileStream  = [System.IO.File]::Create($encryptedFilePath)
-    $cryptoStream      = New-Object System.Security.Cryptography.CryptoStream($outputFileStream, $encryptor, [System.Security.Cryptography.CryptoStreamMode]::Write)
-
-    # Write the IV to the output file first, which is needed for decryption
-    $outputFileStream.Write($iv, 0, $iv.Length)
+    $inputFileStream  = [System.IO.File]::OpenRead($executablePath)
+    $outputFileStream = [System.IO.File]::Create($encryptedFilePath)
+    $cryptoStream     = New-Object System.Security.Cryptography.CryptoStream($outputFileStream, $encryptor, [System.Security.Cryptography.CryptoStreamMode]::Write)
 
     # Define a buffer size (e.g., 4KB)
     $bufferSize = 4096
@@ -99,6 +105,7 @@ try {
     $cryptoStream.Close()
     $inputFileStream.Close()
     $outputFileStream.Close()
+    # TODO: The encrypted data file will be included into the data file which is used in the previous phase in practice.
     Write-Host "The encrypted executable is successfully created at $encryptedFilePath"
 } catch {
     Write-Host "An error occurred during encryption: $_"
