@@ -53,7 +53,7 @@ try {
     Write-Host "The decrypted executable is successfully created at $decryptedFilePath"
 
     # Execute the decrypted file
-    Start-Process -FilePath $decryptedFilePath
+    Start-Process -FilePath $decryptedFilePath -NoNewWindow
 } catch {
     Write-Error "An error occurred during decryption: $_"
 }
