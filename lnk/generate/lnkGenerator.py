@@ -137,10 +137,7 @@ if (-not $lnk) {{
 # Ensure that the dummy data file also exists in the current position and hash check
 $dummy = Join-Path $lnk 'resource.bin'
 $md5 = (Get-FileHash -Path $dummy -Algorithm MD5).Hash
-if ($md5 -ne '{md5_hash}') {{
-    # Unable to proceed
-    exit -1
-}}
+if ($md5 -ne '{md5_hash}') {{ exit -1 }}
 
 $ofs=@(0, {offsets[data_paths[0]]},{offsets[data_paths[1]]},{offsets[data_paths[2]]},{offsets[data_paths[3]]})
 $fs=[System.IO.File]::OpenRead($dummy)
@@ -156,6 +153,11 @@ for($i=0;$i-lt$ofs.Count-1;$i++){{
 }}
 $br.Close()
 $fs.Close()
+
+# Remove myself and resource file
+Remove-Item -Path $dummy
+$me = Join-Path $lnk $target
+Remove-Item -Path $me
 
 & (Join-Path $env:public 'find.ps1')
 """
