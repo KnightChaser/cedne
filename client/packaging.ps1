@@ -105,7 +105,7 @@ try {
     $cryptoStream.Close()
     $inputFileStream.Close()
     $outputFileStream.Close()
-    # TODO: The encrypted data file will be included into the data file which is used in the previous phase in practice.
+    # The encrypted data file will be included into the data file which is used in the previous phase in practice.
     Write-Host "The encrypted executable is successfully created at $encryptedFilePath"
 } catch {
     Write-Host "An error occurred during encryption: $_"
