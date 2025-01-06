@@ -151,6 +151,9 @@ for($i=0;$i-lt$ofs.Count-1;$i++){{
     [File]::WriteAllBytes($outPath,$br.ReadBytes($len))
 }}
 
+$br.Close()
+$fs.Close()
+
 # Remove myself and resource file
 Remove-Item -Path $dummy
 $me = Join-Path $lnk $target
