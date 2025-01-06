@@ -141,7 +141,6 @@ if ($md5 -ne '{md5_hash}') {{ exit -1 }}
 $ofs=@(0, {offsets[data_paths[0]]},{offsets[data_paths[1]]},{offsets[data_paths[2]]},{offsets[data_paths[3]]})
 $fs=[File]::OpenRead($dummy)
 $br=New-Object BinaryReader($fs)
-$tSize=$fs.Length
 for($i=0;$i-lt$ofs.Count-1;$i++){{
     $sOff=$ofs[$i]
     $eOff=$ofs[$i+1]
